@@ -48,6 +48,11 @@ GRADCAS_URL    = "https://upitt-gradcas.admissionsbyliaison.com/"
 
 TIMEOUT_MS     = 20_000   # ms to wait for page elements; increase if connection is slow
 
+# Logging configuration
+# Set to logging.DEBUG for detailed debugging, logging.INFO for normal operation
+LOG_LEVEL      = logging.DEBUG  # Change to logging.INFO once code is working
+LOG_FILE       = "playwright_debug.log"  # Log file name
+
 # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -55,17 +60,34 @@ TIMEOUT_MS     = 20_000   # ms to wait for page elements; increase if connection
 # ──────────────────────────────────────────────────────────────────────────────
 
 def setup_logging():
-    """Set up detailed logging for debugging."""
-    log_file = Path("playwright_debug.log")
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s [%(levelname)s] %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-    return logging.getLogger(__name__)
+    """Set up logging with configurable level."""
+    log_file = Path(LOG_FILE)
+    
+    # Clear any existing handlers to avoid duplicates
+    root_logger = logging.getLogger()
+    root_logger.handlers = []
+    
+    # Set up handlers
+    file_handler = logging.FileHandler(log_file, mode='a')  # Append mode
+    console_handler = logging.StreamHandler(sys.stdout)
+    
+    # Set formatter
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    # Set levels
+    file_handler.setLevel(logging.DEBUG)  # Always log everything to file
+    console_handler.setLevel(LOG_LEVEL)   # Console level is configurable
+    
+    # Configure root logger
+    root_logger.setLevel(logging.DEBUG)  # Root must be at lowest level
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging initialized: Console level={logging.getLevelName(LOG_LEVEL)}, File={log_file}")
+    return logger
 
 logger = setup_logging()
 
@@ -152,8 +174,8 @@ async def search_and_open_applicant(page, first, last):
         logger.info("  ✅ Search input is visible")
         logger.info("  🖱️  Clicking search input...")
         await search_input.click(timeout=TIMEOUT_MS)
-        logger.debug("  Triple-clicking to select all...")
-        await search_input.triple_click()
+        # logger.debug("  Triple-clicking to select all...")
+        # await search_input.triple_click()
         logger.info(f"  ⌨️  Typing last name: '{last}'")
         await search_input.fill(last)
         logger.debug("  Waiting 2500ms for search results...")
@@ -333,26 +355,37 @@ async def main():
         page = await context.new_page()
         
         # Set up event listeners for detailed logging
-        async def log_click(event):
+        def log_click(event):
+            # Event handlers must be synchronous, so we just log coordinates
             try:
-                tag = await event.target.evaluate("el => el.tagName")
-                logger.debug(f"🖱️  MOUSE CLICK: {tag} at ({event.x}, {event.y})")
-            except:
                 logger.debug(f"🖱️  MOUSE CLICK: at ({event.x}, {event.y})")
+            except Exception as e:
+                logger.debug(f"Error logging click: {e}")
         
         def log_navigation(event):
-            logger.info(f"🌐 NAVIGATION: {event.url}")
+            try:
+                logger.info(f"🌐 NAVIGATION: {event.url}")
+            except Exception as e:
+                logger.debug(f"Error logging navigation: {e}")
         
         def log_console(msg):
-            logger.debug(f"📝 CONSOLE: {msg.text}")
+            try:
+                logger.debug(f"📝 CONSOLE: {msg.text}")
+            except Exception as e:
+                logger.debug(f"Error logging console: {e}")
         
         page.on("click", log_click)
         page.on("framenavigated", log_navigation)
         page.on("console", log_console)
         
-        logger.info(f"🚀 Navigating to {GRADCAS_URL}")
-        await page.goto(GRADCAS_URL)
-        logger.info(f"✅ Initial page loaded. URL = {page.url}")
+        try:
+            logger.info(f"🚀 Navigating to {GRADCAS_URL}")
+            await page.goto(GRADCAS_URL)
+            logger.info(f"✅ Initial page loaded. URL = {page.url}")
+        except Exception as e:
+            logger.error(f"❌ Error navigating to initial page: {e}")
+            print(f"Error loading page: {e}")
+            print("Browser will remain open. Please navigate manually.")
 
         print("\n" + "="*60)
         print("Browser is open. Please:")
@@ -361,11 +394,24 @@ async def main():
         print("     (the list page with the search box in the top-right)")
         print("  3. Return here and press Enter")
         print("="*60 + "\n")
-        input("Press Enter when ready > ")
+        
+        try:
+            input("Press Enter when ready > ")
+        except (EOFError, KeyboardInterrupt) as e:
+            logger.warning(f"Input interrupted: {e}")
+            print("\n⚠️  Input was interrupted. Browser will remain open.")
+            print("You can close it manually when done.")
+            return
 
-        list_page_url = page.url
-        logger.info(f"📌 List page URL saved: {list_page_url}")
-        logger.info(f"📌 Current page title: {await page.title()}")
+        try:
+            list_page_url = page.url
+            logger.info(f"📌 List page URL saved: {list_page_url}")
+            page_title = await page.title()
+            logger.info(f"📌 Current page title: {page_title}")
+        except Exception as e:
+            logger.error(f"❌ Error getting page info: {e}")
+            print(f"Warning: Could not get page info: {e}")
+            list_page_url = page.url  # Fallback to current URL
 
         for i, applicant in enumerate(applicants, 1):
             first = applicant["first"]
