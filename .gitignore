@@ -33,5 +33,7 @@ Thumbs.db
 # Downloads
 gradcas_downloads/
 
+# Excel files (privacy - contains applicant data)
+*.xlsx
 # Excel temp files
 ~$*.xlsx
