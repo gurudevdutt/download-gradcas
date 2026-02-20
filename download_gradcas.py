@@ -250,19 +250,109 @@ async def search_and_open_applicant(page, first, last):
 
 
 async def click_applications_sidebar(page):
+    logger.info("📋 click_applications_sidebar")
+    logger.debug(f"  Current URL = {page.url}")
     try:
-        # Target the sidebar link by its icon name
-        await page.locator("i[data-name='applications'], i[data-name='application']").first.click(timeout=TIMEOUT_MS)
-        await wait_and_settle(page, ms=2000)
-        return True
-    except PWTimeout:
+        # Try multiple selectors to find the Applications link
+        logger.debug("  Looking for 'Applications' sidebar link...")
+        apps_link = None
+        
+        # Strategy 1: Target the specific div with class "flex-1" containing "Applications"
         try:
-            await page.get_by_text("Applications", exact=True).click(timeout=TIMEOUT_MS)
-            await wait_and_settle(page, ms=2000)
-            return True
-        except PWTimeout:
+            flex_div = page.locator("div.flex-1:has-text('Applications')")
+            count = await flex_div.count()
+            logger.debug(f"  div.flex-1 with 'Applications': Found {count} element(s)")
+            if count > 0:
+                # Filter to find the one that actually contains "Applications" text
+                for i in range(count):
+                    div = flex_div.nth(i)
+                    text = await div.text_content()
+                    if text and "Applications" in text.strip():
+                        is_visible = await div.is_visible(timeout=2000)
+                        if is_visible:
+                            apps_link = div
+                            logger.info(f"  ✅ Found visible Applications div.flex-1 (index {i})")
+                            break
+                        else:
+                            # Try clicking the parent element
+                            logger.debug(f"  Div at index {i} not visible, trying parent...")
+                            parent = div.locator("..")
+                            parent_count = await parent.count()
+                            if parent_count > 0:
+                                is_visible = await parent.first.is_visible(timeout=2000)
+                                if is_visible:
+                                    apps_link = parent.first
+                                    logger.info(f"  ✅ Found visible parent of Applications div")
+                                    break
+        except Exception as e:
+            logger.debug(f"  div.flex-1 strategy failed: {e}")
+        
+        # Strategy 2: Try the icon first (fallback)
+        if apps_link is None:
+            try:
+                icon_selector = "i[data-name='applications'], i[data-name='application']"
+                icon_count = await page.locator(icon_selector).count()
+                logger.debug(f"  Icon selector '{icon_selector}': Found {icon_count} element(s)")
+                if icon_count > 0:
+                    icon = page.locator(icon_selector).first
+                    is_visible = await icon.is_visible(timeout=2000)
+                    if is_visible:
+                        apps_link = icon
+                        logger.info(f"  ✅ Found visible Applications icon")
+                    else:
+                        logger.debug("  Icon found but not visible, trying parent...")
+                        parent = icon.locator("..")
+                        parent_count = await parent.count()
+                        if parent_count > 0:
+                            is_visible = await parent.first.is_visible(timeout=2000)
+                            if is_visible:
+                                apps_link = parent.first
+                                logger.info(f"  ✅ Found visible parent of Applications icon")
+            except Exception as e:
+                logger.debug(f"  Icon strategy failed: {e}")
+        
+        # Strategy 3: Try finding parent link/li that contains the div
+        if apps_link is None:
+            try:
+                parent_selector = "a:has(div.flex-1:has-text('Applications')), li:has(div.flex-1:has-text('Applications'))"
+                parent_count = await page.locator(parent_selector).count()
+                logger.debug(f"  Parent selector with div.flex-1: Found {parent_count} element(s)")
+                if parent_count > 0:
+                    parent = page.locator(parent_selector).first
+                    is_visible = await parent.is_visible(timeout=2000)
+                    if is_visible:
+                        apps_link = parent
+                        logger.info(f"  ✅ Found visible Applications parent element")
+                    else:
+                        # Try scrolling into view
+                        logger.debug("  Element not visible, trying to scroll into view...")
+                        await parent.scroll_into_view_if_needed(timeout=2000)
+                        is_visible = await parent.is_visible(timeout=2000)
+                        if is_visible:
+                            apps_link = parent
+                            logger.info(f"  ✅ Scrolled Applications element into view")
+            except Exception as e:
+                logger.debug(f"  Parent strategy failed: {e}")
+        
+        if apps_link is None:
+            logger.error("  ❌ Could not find Applications link with any selector")
             print("  Could not find 'Applications' sidebar link")
             return False
+        
+        # Click the found element
+        logger.info("  🖱️  Clicking 'Applications' sidebar link...")
+        await apps_link.click(timeout=TIMEOUT_MS)
+        logger.info("  ✅ Click successful")
+        await wait_and_settle(page, ms=2000)
+        logger.info(f"  ✅ Navigation complete. New URL = {page.url}")
+        return True
+    except PWTimeout as e:
+        logger.error(f"  ❌ Timeout: Could not find or click 'Applications' sidebar link: {e}")
+        print("  Could not find 'Applications' sidebar link")
+        return False
+    except Exception as e:
+        logger.error(f"  ❌ Error in click_applications_sidebar: {e}")
+        return False
 
 
 async def click_application_row(page):
