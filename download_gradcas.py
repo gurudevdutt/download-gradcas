@@ -167,11 +167,8 @@ async def search_and_open_applicant(page, first, last):
     logger.debug(f"  Current URL = {page.url}")
     try:
         # Wait for the SPA to fully load â spinner disappears and search icon appears
-        # Wait for page to be ready first
-        logger.debug("  Waiting for page to be ready...")
-        await page.wait_for_load_state("networkidle", timeout=10_000)
-        await page.wait_for_timeout(1000)  # Additional wait for SPA to initialize
-        
+        # Wait for the search button to appear (more reliable than networkidle)
+        logger.debug("  Waiting for search button (i.search-button) to be visible...")
         await page.locator("i.search-button").wait_for(state="visible", timeout=30_000)
         # Click the magnifying glass icon to reveal the search input
         await page.locator("i.search-button").click(timeout=TIMEOUT_MS)
@@ -253,101 +250,14 @@ async def click_applications_sidebar(page):
     logger.info("📋 click_applications_sidebar")
     logger.debug(f"  Current URL = {page.url}")
     try:
-        # Try multiple selectors to find the Applications link
-        logger.debug("  Looking for 'Applications' sidebar link...")
-        apps_link = None
-        
-        # Strategy 1: Target the specific div with class "flex-1" containing "Applications"
-        try:
-            flex_div = page.locator("div.flex-1:has-text('Applications')")
-            count = await flex_div.count()
-            logger.debug(f"  div.flex-1 with 'Applications': Found {count} element(s)")
-            if count > 0:
-                # Filter to find the one that actually contains "Applications" text
-                for i in range(count):
-                    div = flex_div.nth(i)
-                    text = await div.text_content()
-                    if text and "Applications" in text.strip():
-                        is_visible = await div.is_visible(timeout=2000)
-                        if is_visible:
-                            apps_link = div
-                            logger.info(f"  ✅ Found visible Applications div.flex-1 (index {i})")
-                            break
-                        else:
-                            # Try clicking the parent element
-                            logger.debug(f"  Div at index {i} not visible, trying parent...")
-                            parent = div.locator("..")
-                            parent_count = await parent.count()
-                            if parent_count > 0:
-                                is_visible = await parent.first.is_visible(timeout=2000)
-                                if is_visible:
-                                    apps_link = parent.first
-                                    logger.info(f"  ✅ Found visible parent of Applications div")
-                                    break
-        except Exception as e:
-            logger.debug(f"  div.flex-1 strategy failed: {e}")
-        
-        # Strategy 2: Try the icon first (fallback)
-        if apps_link is None:
-            try:
-                icon_selector = "i[data-name='applications'], i[data-name='application']"
-                icon_count = await page.locator(icon_selector).count()
-                logger.debug(f"  Icon selector '{icon_selector}': Found {icon_count} element(s)")
-                if icon_count > 0:
-                    icon = page.locator(icon_selector).first
-                    is_visible = await icon.is_visible(timeout=2000)
-                    if is_visible:
-                        apps_link = icon
-                        logger.info(f"  ✅ Found visible Applications icon")
-                    else:
-                        logger.debug("  Icon found but not visible, trying parent...")
-                        parent = icon.locator("..")
-                        parent_count = await parent.count()
-                        if parent_count > 0:
-                            is_visible = await parent.first.is_visible(timeout=2000)
-                            if is_visible:
-                                apps_link = parent.first
-                                logger.info(f"  ✅ Found visible parent of Applications icon")
-            except Exception as e:
-                logger.debug(f"  Icon strategy failed: {e}")
-        
-        # Strategy 3: Try finding parent link/li that contains the div
-        if apps_link is None:
-            try:
-                parent_selector = "a:has(div.flex-1:has-text('Applications')), li:has(div.flex-1:has-text('Applications'))"
-                parent_count = await page.locator(parent_selector).count()
-                logger.debug(f"  Parent selector with div.flex-1: Found {parent_count} element(s)")
-                if parent_count > 0:
-                    parent = page.locator(parent_selector).first
-                    is_visible = await parent.is_visible(timeout=2000)
-                    if is_visible:
-                        apps_link = parent
-                        logger.info(f"  ✅ Found visible Applications parent element")
-                    else:
-                        # Try scrolling into view
-                        logger.debug("  Element not visible, trying to scroll into view...")
-                        await parent.scroll_into_view_if_needed(timeout=2000)
-                        is_visible = await parent.is_visible(timeout=2000)
-                        if is_visible:
-                            apps_link = parent
-                            logger.info(f"  ✅ Scrolled Applications element into view")
-            except Exception as e:
-                logger.debug(f"  Parent strategy failed: {e}")
-        
-        if apps_link is None:
-            logger.error("  ❌ Could not find Applications link with any selector")
-            print("  Could not find 'Applications' sidebar link")
-            return False
-        
-        # Click the found element
-        logger.info("  🖱️  Clicking 'Applications' sidebar link...")
-        await apps_link.click(timeout=TIMEOUT_MS)
+        logger.debug("  Looking for Applications sidebar link: a[data-id='tab-applications']")
+        await page.locator("a[data-id='tab-applications']").click(timeout=TIMEOUT_MS)
         logger.info("  ✅ Click successful")
         await wait_and_settle(page, ms=2000)
         logger.info(f"  ✅ Navigation complete. New URL = {page.url}")
         return True
     except PWTimeout as e:
-        logger.error(f"  ❌ Timeout: Could not find or click 'Applications' sidebar link: {e}")
+        logger.error(f"  ❌ Timeout: Could not find 'Applications' sidebar link: {e}")
         print("  Could not find 'Applications' sidebar link")
         return False
     except Exception as e:
@@ -400,12 +310,26 @@ async def click_attachments_tab(page):
 
 
 async def expand_application_pdf(page):
+    logger.info("📄 expand_application_pdf")
+    logger.debug(f"  Current URL = {page.url}")
     try:
-        await page.locator("text=APPLICATION PDF").click(timeout=TIMEOUT_MS)
-        await wait_and_settle(page, ms=3000)
+        # Click the Application PDF toggle to expand it
+        logger.debug("  Looking for Application PDF toggle: a[data-id^='toggle-step']")
+        await page.locator("a[data-id^='toggle-step']").first.click(timeout=TIMEOUT_MS)
+        logger.info("  ✅ Toggle clicked")
+        await wait_and_settle(page, ms=1000)
+        # Wait for the PDF iframe to appear (the one with title ending in "_application.pdf")
+        logger.debug("  Waiting for Application PDF iframe to appear...")
+        await page.locator("iframe[data-id='PDFViewer'][title$='_application.pdf']").wait_for(state="visible", timeout=TIMEOUT_MS)
+        logger.info("  ✅ Application PDF iframe is visible")
+        await wait_and_settle(page, ms=2000)
         return True
-    except PWTimeout:
-        print("  Could not find 'APPLICATION PDF' section")
+    except PWTimeout as e:
+        logger.error(f"  ❌ Timeout: Could not expand Application PDF or find PDF viewer iframe: {e}")
+        print("  Could not expand Application PDF or find PDF viewer iframe")
+        return False
+    except Exception as e:
+        logger.error(f"  ❌ Error in expand_application_pdf: {e}")
         return False
 
 
@@ -414,11 +338,12 @@ async def download_pdf(page, download_dir, filename):
     try:
         async with page.expect_download(timeout=30_000) as dl_info:
             try:
-                frame = page.frame_locator("iframe").first
+                # Use the iframe with title ending in "_application.pdf"
+                frame = page.frame_locator("iframe[data-id='PDFViewer'][title$='_application.pdf']").first
                 await frame.locator("#downloadButton").click(timeout=10_000)
             except Exception:
                 try:
-                    frame = page.frame_locator("iframe").first
+                    frame = page.frame_locator("iframe[data-id='PDFViewer'][title$='_application.pdf']").first
                     await frame.locator("button[title='Save'], button[title='Download']").first.click(timeout=8000)
                 except Exception:
                     await page.locator("button:has-text('Save'), button:has-text('Download')").first.click(timeout=8000)
