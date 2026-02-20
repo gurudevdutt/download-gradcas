@@ -311,21 +311,25 @@ async def click_attachments_tab(page):
 
 async def expand_application_pdf(page):
     logger.info("📄 expand_application_pdf")
-    logger.debug(f"  Current URL = {page.url}")
     try:
-        # Click the Application PDF toggle to expand it
-        logger.debug("  Looking for Application PDF toggle: a[data-id^='toggle-step']")
-        await page.locator("a[data-id^='toggle-step']").first.click(timeout=TIMEOUT_MS)
-        logger.info("  ✅ Toggle clicked")
-        await wait_and_settle(page, ms=1000)
-        # Wait for the PDF iframe to appear (the one with title ending in "_application.pdf")
-        logger.debug("  Waiting for Application PDF iframe to appear...")
-        await page.locator("iframe[data-id='PDFViewer'][title$='_application.pdf']").wait_for(state="visible", timeout=TIMEOUT_MS)
-        logger.info("  ✅ Application PDF iframe is visible")
-        await wait_and_settle(page, ms=2000)
+        # Check if the iframe is already visible (section already expanded)
+        iframe_locator = page.locator("iframe[data-id='PDFViewer'][title$='_application.pdf']")
+        already_visible = await iframe_locator.count()
+        
+        if already_visible == 0:
+            logger.debug("  iframe not found, clicking toggle to expand...")
+            await page.locator("a[data-id^='toggle-step']").first.click(timeout=TIMEOUT_MS)
+            await wait_and_settle(page, ms=1000)
+        else:
+            logger.info("  ✅ Application PDF already expanded, skipping toggle click")
+
+        # Wait for iframe to be attached and loaded
+        await iframe_locator.wait_for(state="attached", timeout=TIMEOUT_MS)
+        logger.info("  ✅ Application PDF iframe is ready")
+        await wait_and_settle(page, ms=3000)
         return True
     except PWTimeout as e:
-        logger.error(f"  ❌ Timeout: Could not expand Application PDF or find PDF viewer iframe: {e}")
+        logger.error(f"  ❌ Timeout in expand_application_pdf: {e}")
         print("  Could not expand Application PDF or find PDF viewer iframe")
         return False
     except Exception as e:
