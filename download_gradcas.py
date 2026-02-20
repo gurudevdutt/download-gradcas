@@ -91,29 +91,44 @@ logger = setup_logging()
 # ------------------------------------------------------------------------------
 
 async def go_back_to_list(page):
-    """Click the Contacts/Applicants people icon in the left sidebar."""
     logger.info(f"🔙 go_back_to_list: Current URL = {page.url}")
     try:
-        logger.debug("  Looking for people icon: i[data-name='people']")
-        people_icon = page.locator("i[data-name='people']")
-        count = await people_icon.count()
-        logger.debug(f"  Found {count} people icon(s)")
+        logger.debug("  Clicking people icon to navigate back...")
+        await page.locator("i[data-name='people']").click(timeout=TIMEOUT_MS)
+        await wait_and_settle(page, ms=2000)
         
-        if count > 0:
-            logger.info("  ✅ Clicking people icon in sidebar")
-            await people_icon.click(timeout=TIMEOUT_MS)
-            logger.debug("  Click successful, waiting for page to settle...")
-            await wait_and_settle(page, ms=3000)
-            logger.info(f"  ✅ Navigation complete. New URL = {page.url}")
-        else:
-            logger.warning("  ⚠️  People icon not found!")
-            print("  Could not find people/contacts sidebar icon")
-    except PWTimeout as e:
-        logger.error(f"  ❌ Timeout waiting for people icon: {e}")
+        # Clear any lingering search by clicking the cancel button
+        logger.debug("  Looking for cancel button (X) in search field...")
+        try:
+            # Use JavaScript to find and click the cancel button (more reliable with aria-hidden)
+            clicked = await page.evaluate("""
+                () => {
+                    const icons = Array.from(document.querySelectorAll('i.material-icons'));
+                    for (let icon of icons) {
+                        if (icon.textContent.trim() === 'cancel') {
+                            const style = window.getComputedStyle(icon);
+                            if (style.display !== 'none' && style.visibility !== 'hidden') {
+                                icon.click();
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }
+            """)
+            if clicked:
+                logger.info("  🖱️  Clicked cancel button to clear search...")
+                await wait_and_settle(page, ms=1000)
+                logger.info("  ✅ Search cleared")
+            else:
+                logger.debug("  No visible cancel button found (search may already be clear)")
+        except Exception as e:
+            logger.debug(f"  Could not click cancel button (search may already be clear): {e}")
+        
+        logger.info(f"  ✅ go_back_to_list complete. New URL = {page.url}")
+    except PWTimeout:
+        logger.error("  ❌ Timeout: Could not find people/contacts sidebar icon")
         print("  Could not find people/contacts sidebar icon")
-    except Exception as e:
-        logger.error(f"  ❌ Unexpected error in go_back_to_list: {e}")
-        print(f"  Error going back to list: {e}")
 def load_applicants(excel_path, first_col, last_col):
     wb = openpyxl.load_workbook(excel_path)
     ws = wb.active
@@ -142,15 +157,9 @@ def safe_filename(first, last):
 
 
 async def wait_and_settle(page, ms=1500):
-    logger.debug(f"  ⏳ wait_and_settle: waiting for networkidle (max {TIMEOUT_MS}ms) + {ms}ms delay")
-    try:
-        await page.wait_for_load_state("networkidle", timeout=TIMEOUT_MS)
-        logger.debug("  ✅ Network idle state reached")
-    except PWTimeout:
-        logger.debug("  ⚠️  Network idle timeout (continuing anyway)")
-        pass
+    logger.debug(f"  ⏳ wait_and_settle: waiting {ms}ms...")
     await page.wait_for_timeout(ms)
-    logger.debug(f"  ✅ Settle complete ({ms}ms delay finished)")
+    logger.debug(f"  ✅ wait_and_settle: done ({ms}ms elapsed)")
 
 
 async def search_and_open_applicant(page, first, last):
@@ -158,6 +167,11 @@ async def search_and_open_applicant(page, first, last):
     logger.debug(f"  Current URL = {page.url}")
     try:
         # Wait for the SPA to fully load â spinner disappears and search icon appears
+        # Wait for page to be ready first
+        logger.debug("  Waiting for page to be ready...")
+        await page.wait_for_load_state("networkidle", timeout=10_000)
+        await page.wait_for_timeout(1000)  # Additional wait for SPA to initialize
+        
         await page.locator("i.search-button").wait_for(state="visible", timeout=30_000)
         # Click the magnifying glass icon to reveal the search input
         await page.locator("i.search-button").click(timeout=TIMEOUT_MS)
@@ -175,8 +189,10 @@ async def search_and_open_applicant(page, first, last):
         # await search_input.triple_click()
         logger.info(f"  ⌨️  Typing last name: '{last}'")
         await search_input.fill(last)
-        logger.debug("  Waiting 2500ms for search results...")
-        await page.wait_for_timeout(2500)
+        logger.info("  ⌨️  Pressing Enter to submit search...")
+        await search_input.press("Enter")
+        logger.debug("  Waiting 3000ms for search results to update...")
+        await page.wait_for_timeout(3000)
         logger.info("  ✅ Search completed")
     except PWTimeout as e:
         logger.error(f"  ❌ Timeout in search_and_open_applicant: {e}")
@@ -199,7 +215,7 @@ async def search_and_open_applicant(page, first, last):
         return False
 
     target_row = None
-    logger.debug("  Searching for matching row...")
+    logger.debug("  Searching for matching row (matching both first and last name)...")
     for i in range(count):
         row = rows.nth(i)
         text = (await row.text_content() or "").strip()
@@ -234,27 +250,19 @@ async def search_and_open_applicant(page, first, last):
 
 
 async def click_applications_sidebar(page):
-    logger.info("📋 click_applications_sidebar")
-    logger.debug(f"  Current URL = {page.url}")
     try:
-        logger.debug("  Looking for 'Applications' sidebar link...")
-        apps_link = page.locator("text=Applications").first
-        count = await page.locator("text=Applications").count()
-        logger.debug(f"  Found {count} 'Applications' link(s)")
-        
-        logger.info("  🖱️  Clicking 'Applications' sidebar link...")
-        await apps_link.click(timeout=TIMEOUT_MS)
-        logger.info("  ✅ Click successful")
-        await wait_and_settle(page)
-        logger.info(f"  ✅ Navigation complete. New URL = {page.url}")
+        # Target the sidebar link by its icon name
+        await page.locator("i[data-name='applications'], i[data-name='application']").first.click(timeout=TIMEOUT_MS)
+        await wait_and_settle(page, ms=2000)
         return True
-    except PWTimeout as e:
-        logger.error(f"  ❌ Timeout: Could not find 'Applications' sidebar link: {e}")
-        print("  Could not find 'Applications' sidebar link")
-        return False
-    except Exception as e:
-        logger.error(f"  ❌ Error in click_applications_sidebar: {e}")
-        return False
+    except PWTimeout:
+        try:
+            await page.get_by_text("Applications", exact=True).click(timeout=TIMEOUT_MS)
+            await wait_and_settle(page, ms=2000)
+            return True
+        except PWTimeout:
+            print("  Could not find 'Applications' sidebar link")
+            return False
 
 
 async def click_application_row(page):
