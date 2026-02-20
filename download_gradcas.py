@@ -445,10 +445,20 @@ async def main():
 
             print(f"\n[{i}/{len(applicants)}] {first} {last}")
 
+            # Check if file already exists and has content (not corrupted/incomplete)
             if dest.exists():
-                print(f"  Already downloaded, skipping")
-                succeeded.append(f"{first} {last}")
-                continue
+                file_size = dest.stat().st_size
+                if file_size > 0:
+                    size_kb = file_size // 1024
+                    print(f"  ✅ Already downloaded ({size_kb} KB), skipping")
+                    logger.info(f"  Skipping {fname} - already exists ({size_kb} KB)")
+                    succeeded.append(f"{first} {last}")
+                    continue
+                else:
+                    # File exists but is empty/corrupted, remove it and re-download
+                    print(f"  ⚠️  File exists but is empty/corrupted, will re-download")
+                    logger.warning(f"  File {fname} exists but is 0 bytes, removing for re-download")
+                    dest.unlink()
 
             try:
                 logger.info("="*60)

@@ -24,10 +24,12 @@ Automates downloading Application PDFs from upitt-gradcas.admissionsbyliaison.co
    ./venv/bin/python download_gradcas.py
    ```
 
-5. When the browser opens:
+5. **IMPORTANT - When the browser opens:**
    - Log in via Pitt SSO
-   - Navigate to: Contacts > Applicants > All
-   - Press Enter in the terminal
+   - **Navigate to: Contacts > Applicants > All**
+     (You should see the list page with a search box in the top-right)
+   - A browser alert will remind you to navigate to this page
+   - **Press Enter in the terminal** only after you're on the Contacts > Applicants > All page
 
 ## Usage Notes
 
