@@ -36,10 +36,9 @@ from pathlib import Path
 import openpyxl
 from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 
-# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-#  CONFIG â edit these before running
-# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-
+########################################################
+# CONFIG
+########################################################
 EXCEL_PATH     = "try_3applicants.xlsx"          # path to your Excel file
 FIRST_NAME_COL = "First Name"               # exact column header for first name
 LAST_NAME_COL  = "Last Name"                # exact column header for last name
@@ -51,13 +50,11 @@ TIMEOUT_MS     = 20_000   # ms to wait for page elements; increase if connection
 # Logging configuration
 # Set to logging.DEBUG for detailed debugging, logging.INFO for normal operation
 LOG_LEVEL      = logging.DEBUG  # Change to logging.INFO once code is working
-LOG_FILE       = "playwright_debug.log"  # Log file name
+LOG_FILE       = "playwright_debug.log"  # Log file name\
 
-# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-
-# ──────────────────────────────────────────────────────────────────────────────
-#  LOGGING SETUP
-# ──────────────────────────────────────────────────────────────────────────────
+########################################################
+# LOGGING SETUP
+########################################################
 
 def setup_logging():
     """Set up logging with configurable level."""
@@ -91,7 +88,7 @@ def setup_logging():
 
 logger = setup_logging()
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 
 async def go_back_to_list(page):
     """Click the Contacts/Applicants people icon in the left sidebar."""
