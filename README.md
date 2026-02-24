@@ -52,3 +52,6 @@ Users are responsible for ensuring they have proper authorization to access and 
 ## Git
 
 This repository is now version controlled. Always activate the venv before running Python commands.
+
+## Acknowledgment
+This script was developed with AI assistance (Claude, Anthropic). The workflow, testing, and site-specific debugging were done by the author.
