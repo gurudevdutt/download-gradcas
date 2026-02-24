@@ -4,7 +4,7 @@
 
 ```bash
 # Make sure you're in the project directory
-cd /Users/gurudevdutt/CursorProjects/download-gradcas
+cd /Users/YOUR_USERNAME/Projects/download-gradcas
 
 # Create and push to GitHub in one command
 gh repo create download-gradcas --public --source=. --remote=origin --push
