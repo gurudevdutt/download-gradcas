@@ -25,7 +25,8 @@ Usage:
      Contacts / Applicants / All list page (search box in top-right),
      then press Enter in the terminal.
 """
-
+# Developed with AI assistance (Claude, Anthropic) through iterative
+# debugging. See README for details.
 import asyncio
 import logging
 import re
