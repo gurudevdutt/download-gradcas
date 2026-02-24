@@ -16,7 +16,7 @@ Usage:
          pip install playwright openpyxl
          playwright install chromium
 
-  2. Edit CONFIG below to match your Excel file.
+  2. Edit CONFIG below to match your Excel file. I recommend starting with a smaller file (2-3 applicants) to test.
 
   3. Run:
          python download_gradcas.py
@@ -40,7 +40,7 @@ from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 ########################################################
 # CONFIG
 ########################################################
-EXCEL_PATH     = "applicants_2026.xlsx"          # path to your Excel file
+EXCEL_PATH     = "applicants_2026.xlsx"          # path to your Excel file, I recommend testing with smaller file first.
 FIRST_NAME_COL = "First Name"               # exact column header for first name
 LAST_NAME_COL  = "Last Name"                # exact column header for last name
 DOWNLOAD_DIR   = Path("gradcas_downloads")  # folder where PDFs will be saved
