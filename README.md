@@ -27,7 +27,7 @@ Users are responsible for ensuring they have proper authorization to access and 
    playwright install chromium
    ```
 
-3. **Edit CONFIG in `download_gradcas.py`** to match your Excel file.
+3. **Edit CONFIG in `download_gradcas.py`** to match your Excel file. I recommend starting with a smaller file to test.
 
 4. **Run the script:**
    ```bash
